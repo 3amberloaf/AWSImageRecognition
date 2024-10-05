@@ -1,7 +1,7 @@
 # AWS EC2 Instance Setup for Image Recognition Project
 
 ## Project Overview
-This project involves setting up two EC2 instances (Instance A and Instance B) that will work in parallel to perform image recognition tasks using AWS services such as EC2, S3, SQS, and Rekognition. This README outlines the steps taken to create the instances and configure them for the project.
+This project involves setting up two EC2 instances (Instance A and Instance B) that will work in parallel to perform image recognition tasks using AWS services such as EC2, S3, SQS, and Rekognition. This README outlines the steps taken to create the instances, configure them, transfer project files, set up AWS credentials, and run the code on the instances.
 
 ## Steps to Create EC2 Instances
 
@@ -39,7 +39,54 @@ This project involves setting up two EC2 instances (Instance A and Instance B) t
      chmod 400 /path/to/your-key.pem
      ```
 
-### 7. **Termination Reminder**
+### 7. **AWS Credentials Setup**
+   - Set up AWS credentials as environment variables on the local machine. These credentials are used by the Java AWS SDK to access AWS services (S3, SQS, and Rekognition).
+   - Run the following commands in your terminal (substitute your actual credentials):
+     ```bash
+     export AWS_ACCESS_KEY_ID=your-access-key
+     export AWS_SECRET_ACCESS_KEY=your-secret-key
+     export AWS_SESSION_TOKEN=your-session-token  # If applicable
+     ```
+   - These credentials allow the program to interact with AWS services programmatically.
+
+### 8. **Transfer the Project Files to Instance A**
+   - To run the image recognition Java project on **Instance A**, the local project files were securely transferred to the instance using the `scp` command:
+     ```bash
+     scp -i /path/to/your-key.pem -r /path/to/local-project-folder/ ec2-user@your-instance-public-ip:/home/ec2-user/
+     ```
+   - Example:
+     ```bash
+     scp -i /Users/ambersautner/Desktop/Class/amber_sautner_aws_key.pem -r /Users/ambersautner/AWSImageRecognition/AWSProject/ ec2-user@ec2-18-206-176-12.compute-1.amazonaws.com:/home/ec2-user/
+     ```
+   - This command securely copies the entire project folder to the EC2 instance.
+
+### 9. **Compile and Run the Project on Instance A**
+   - After the project files were transferred to **Instance A**, logged into the EC2 instance using SSH and navigated to the project directory:
+     ```bash
+     ssh -i /path/to/your-key.pem ec2-user@your-instance-public-ip
+     cd /home/ec2-user/AWSProject
+     ```
+   - **Compile the Java project**:
+     ```bash
+     mvn clean compile
+     ```
+   - **Package the Java project**:
+     ```bash
+     mvn clean package
+     ```
+   - **Run the Java application**:
+     ```bash
+     java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar InstanceA
+     ```
+
+### 10. **Handling Errors and AWS Region Setup**
+   - To resolve issues with ambiguous `Region` imports, ensured that the AWS `Region` class is fully qualified in the Java code:
+     ```java
+     software.amazon.awssdk.regions.Region region = software.amazon.awssdk.regions.Region.US_EAST_1;
+     ```
+   - Make sure the correct AWS region (`us-east-1`) is set for your services (S3, SQS, Rekognition).
+
+### 11. **Termination Reminder**
    - As the EC2 instances are running on the AWS Free Tier, it's important to **terminate** the instances once the project is completed to avoid incurring additional charges:
      - Go to **EC2 Dashboard** > **Instances**, select both instances, and click **Terminate**.
 
