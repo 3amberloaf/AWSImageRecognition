@@ -1,7 +1,7 @@
 # AWS EC2 Instance Setup for Image Recognition Project
 
 ## Project Overview
-This project involves setting up two EC2 instances (Instance A and Instance B) that will work in parallel to perform image recognition tasks using AWS services such as EC2, S3, SQS, and Rekognition. This README outlines the steps taken to create the instances, configure them, transfer project files, set up AWS credentials, and run the code on the instances.
+This project involves setting up two EC2 instances (Instance A and Instance B) that will work in parallel to perform image recognition tasks using AWS services such as EC2, S3, SQS, and Rekognition. This README outlines the steps taken to create the instances, configure them, transfer project files, set up AWS credentials, run the code on the instances, and handle image processing through AWS services.
 
 ## Steps to Create EC2 Instances
 
@@ -76,17 +76,36 @@ This project involves setting up two EC2 instances (Instance A and Instance B) t
      ```
    - **Run the Java application**:
      ```bash
-     java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar InstanceA
+     java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.InstanceA
      ```
 
-### 10. **Handling Errors and AWS Region Setup**
+### 10. **Run the Project on Instance B**
+   - After completing setup for **Instance A**, moved to **Instance B** to process image data sent by Instance A.
+   - Compiled and packaged the project similarly on **Instance B**:
+     ```bash
+     mvn clean compile
+     mvn clean package
+     ```
+   - Then executed **Instance B**:
+     ```bash
+     java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.InstanceB
+     ```
+
+### 11. **Handling Errors and AWS Region Setup**
    - To resolve issues with ambiguous `Region` imports, ensured that the AWS `Region` class is fully qualified in the Java code:
      ```java
      software.amazon.awssdk.regions.Region region = software.amazon.awssdk.regions.Region.US_EAST_1;
      ```
-   - Make sure the correct AWS region (`us-east-1`) is set for your services (S3, SQS, Rekognition).
+   - Made sure the correct AWS region (`us-east-1`) is set for your services (S3, SQS, Rekognition).
 
-### 11. **Termination Reminder**
+### 12. **Processing Images**
+   - Successfully executed **Instance B** to process images using AWS Rekognition and SQS.
+   - Images were processed in real-time, and messages for the processed images were deleted from the SQS queue:
+     ```bash
+     mvn exec:java -Dexec.mainClass="com.example.InstanceB"
+     ```
+
+### 13. **Termination Reminder**
    - As the EC2 instances are running on the AWS Free Tier, it's important to **terminate** the instances once the project is completed to avoid incurring additional charges:
      - Go to **EC2 Dashboard** > **Instances**, select both instances, and click **Terminate**.
 
