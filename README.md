@@ -198,4 +198,10 @@ Create two instances (Instance A and Instance B) with the following requirements
      java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.InstanceB
      ```
 
-# Conclusion
+## Conclusion
+
+This project successfully demonstrates how to build a distributed image recognition pipeline using AWS services. By utilizing two **EC2 instances** (Instance A and B), working in parallel, the pipeline efficiently handles image processing tasks such as car detection and text recognition. With **Amazon S3** providing scalable storage for images, **Amazon SQS** ensuring smooth communication between the instances, and **AWS Rekognition** offering powerful machine learning capabilities, the pipeline illustrates the effectiveness of cloud-based services for distributed computing.
+
+Instance A’s ability to detect cars in images and communicate with Instance B via SQS highlights the decoupling of tasks, allowing both instances to operate independently and in parallel. Instance B’s text recognition workflow further adds value by extracting and logging useful text information from the identified images. 
+
+The use of **AWS SDKs** in **Java** to integrate these services into a cohesive application demonstrates the ease with which developers can leverage cloud infrastructure to create scalable, reliable, and efficient systems. This project not only showcases distributed computing but also exemplifies the power and flexibility of AWS cloud services in real-world applications.

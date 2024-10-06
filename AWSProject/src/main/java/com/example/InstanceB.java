@@ -1,6 +1,8 @@
 package com.example;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -73,9 +75,20 @@ public class InstanceB {
                 DetectTextResponse detectTextResponse = rekognitionClient.detectText(detectTextRequest);
                 List<TextDetection> textDetections = detectTextResponse.textDetections();
 
-                System.out.println("Detected text in image " + imageKey + ":");
-                for (TextDetection text : textDetections) {
-                    System.out.println("Detected: " + text.detectedText());
+                // Check if this image has associated text and log it
+                if (!textDetections.isEmpty()) {
+                    // Writing detected text to a file
+                    try (FileWriter writer = new FileWriter("/home/ec2-user/output.txt", true)) {  // Append mode
+                        writer.write("Image Key (with car detected): " + imageKey + "\n");
+                        writer.write("Detected text:\n");
+                        for (TextDetection text : textDetections) {
+                            writer.write("Detected: " + text.detectedText() + "\n");
+                            System.out.println("Detected: " + text.detectedText());
+                        }
+                        writer.write("\n");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
 
                 // After processing, delete the message from the queue
