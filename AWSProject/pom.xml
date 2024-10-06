@@ -76,7 +76,7 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.example.InstanceA</mainClass> <!-- Set your main class here -->
+                                    <mainClass>com.example.AWS</mainClass> <!-- Set your main class here -->
                                 </transformer>
                             </transformers>
                         </configuration>
@@ -90,7 +90,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.example.InstanceA</mainClass> <!-- Ensure this is set correctly -->
+                    <mainClass>com.example.AWS</mainClass> <!-- Ensure this is set correctly -->
                 </configuration>
             </plugin>
         </plugins>

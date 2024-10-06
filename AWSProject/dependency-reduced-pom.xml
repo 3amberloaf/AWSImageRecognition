@@ -28,7 +28,7 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.example.InstanceA</mainClass>
+                  <mainClass>com.example.AWS</mainClass>
                 </transformer>
               </transformers>
             </configuration>
@@ -40,7 +40,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.1.0</version>
         <configuration>
-          <mainClass>com.example.InstanceA</mainClass>
+          <mainClass>com.example.AWS</mainClass>
         </configuration>
       </plugin>
     </plugins>
