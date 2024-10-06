@@ -1,114 +1,201 @@
-# AWS EC2 Instance Setup for Image Recognition Project
+# AWS Image Recognition Pipeline Project
 
-## Project Overview
-This project involves setting up two EC2 instances (Instance A and Instance B) that will work in parallel to perform image recognition tasks using AWS services such as EC2, S3, SQS, and Rekognition. This README outlines the steps taken to create the instances, configure them, transfer project files, set up AWS credentials, run the code on the instances, and handle image processing through AWS services.
+In this project, distributed computing was achieved by using two separate **EC2 instances** (Instance A and Instance B). The instances run in parallel and communicate via **AWS SQS** to process images stored in **AWS S3**. Each instance performs a specific task—car detection and text recognition—contributing to a larger distributed application using AWS services for storage, message queuing, and machine learning.
+
+![Project Overview](AWSProject/src/images/fig1.jpg)
+
+### Key AWS Services Utilized
+- **EC2**: Virtual machines for running the image recognition pipeline created from Amazon Linuz AMI.
+- **S3**: Cloud storage that containing images for processing.
+- **SQS**: Queue service for communication between the instances.
+- **Rekognition**: AWS service used for image and text recognition.
+
+---
+
+## System Architecture
+
+### EC2 Instances
+- **Instance A**: 
+  - Reads images one by one from the S3 bucket.
+  - Detects cars in images using AWS Rekognition.
+  - Sends the index of images containing cars to an SQS queue.
+  - Terminates by sending `-1` to the queue when there are no more images left.
+  
+- **Instance B**:
+  - Reads image indices from SQS.
+  - Downloads the corresponding images from S3.
+  - Uses Rekognition to perform text recognition.
+  - If both a car and text are found in an image, it writes the image’s index and the detected text to a file stored on the EBS (Elastic Block Store) volume.
+
+### S3 Storage
+
+ - **Storing Images**:
+   The images used for object and text recognition are stored in an S3 bucket. The bucket URL is: https://njit-cs-643.s3.us-east-1.amazonaws.com
+
+In the following example, Instance A downloads an image (2.jpg) from the S3 bucket njit-cs-643 and saves it to the local file system for further processing by Instance B. 
+```java
+// Initialize the S3 Client
+S3Client s3 = S3Client.builder().region(Region.US_EAST_1).build();
+
+// Define the S3 bucket and image key (file name)
+String bucketName = "njit-cs-643";
+String key = "2.jpg";  // Example image key
+
+// Define where the downloaded file will be stored locally
+Path destination = Paths.get("/home/ec2-user/images/2.jpg");
+
+// Download the image from S3
+s3.getObject(GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(key)
+            .build(),
+        destination);
+```
+
+### Simple Queue Service
+ - **Instance A sends messages to SQS**
+   - Instance A will process images from the S3 bucket and use **AWS Rekognition** to detect if there are cars. When a car is detected with at least a 90% confidence rate, Instance A sends the index of that image (e.g., `2.jpg`) to the SQS queue.
+   - Instance A will also send a message (`-1`) to the queue when all images have been processed, which tells Instance B that there are no more images.
+
+In the folowing code, **Instance A** sends messages to SQS.
+   ```java
+   // Import necessary AWS SDK packages
+   import software.amazon.awssdk.services.sqs.SqsClient;
+   import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
+
+   // Initialize the SQS client
+   SqsClient sqs = SqsClient.builder().region(Region.US_EAST_1).build();
+
+   // Define the SQS queue URL
+   String queueUrl = "https://sqs.us-east-1.amazonaws.com/your-account-id/your-queue-name";
+
+   // Send image index (e.g., 2.jpg) to SQS
+   String imageIndex = "2.jpg";
+   sqs.sendMessage(SendMessageRequest.builder()
+           .queueUrl(queueUrl)
+           .messageBody(imageIndex)
+           .build());
+
+   // When done, send termination signal (-1)
+   sqs.sendMessage(SendMessageRequest.builder()
+           .queueUrl(queueUrl)
+           .messageBody("-1")
+           .build());
+  ```
+
+## Using AWS Rekognition Machine Learning Service in the Cloud
+
+In this project, **AWS Rekognition** is used as the machine learning service to perform two key tasks:
+1. **Object Detection**: Instance A uses Rekognition to detect cars in images.
+2. **Text Recognition**: Instance B uses Rekognition to extract text from images that were flagged by Instance A as containing cars.
+
+### AWS Rekognition Overview
+
+In this project, **Rekognition** is utilized to detect cars in images and to recognize text in images.
+
+### Key Steps for Using AWS Rekognition:
+
+1. **Set Up AWS SDK for Rekognition in Java**
+   - To use AWS Rekognition in your Java application, you must first set up the AWS SDK for Rekognition. This involves importing the necessary packages and initializing the Rekognition client.
+
+   Example of setting up Rekognition in Java:
+   ```java
+   // Import the necessary AWS SDK packages
+   import software.amazon.awssdk.services.rekognition.RekognitionClient;
+   import software.amazon.awssdk.regions.Region;
+
+   // Initialize the AWS Rekognition client
+   RekognitionClient rekognitionClient = RekognitionClient.builder()
+           .region(Region.US_EAST_1)  // Use the appropriate region
+           .build();
+
+## Distributed Computing
+
+### Parallel Execution
+
+The two EC2 instances run in parallel, with **Instance A** detecting cars in images and **Instance B** performing text recognition based on the image indices it receives from the SQS queue. This creates a seamless and efficient pipeline for the instances to communicate.
+
+### Communication Through SQS
+
+To communicate between the two EC2 instances, **Amazon SQS** is used. **Instance A** sends messages (image indices) to the SQS queue when it detects a car in an image. **Instance B** continuously polls the queue and processes the images as soon as a new message is received.
+
+This decoupling allows the two instances to operate independently without waiting for each other, thus achieving distributed processing.
+
+___
 
 ## Steps to Create EC2 Instances
 
+Create two instances (Instance A and Instance B) with the following requirements.
+
 ### 1. **Choose the AMI**
-   - **Amazon Linux 2 AMI (HVM)** was selected to provide a stable and modern Linux environment with long-term support.
-   - This AMI supports the latest versions of software packages and is optimized for AWS.
+   - **Amazon Linux 2 AMI** - provides stable and modern Linux environment with long-term support.
 
 ### 2. **Instance Type**
-   - **Instance Type**: `t2.micro`
-     - Chosen for its compatibility with the AWS Free Tier, which ensures no cost for running the instances (within the free tier usage limits).
-     - Suitable for lightweight workloads.
+   - **t2.micro** - compatible with AWS Free Tier.
 
 ### 3. **Key Pair Creation**
-   - **Key Pair**: Created a new **RSA** key pair for secure SSH access to both instances.
-     - The `.pem` file was downloaded and saved securely on the local machine.
-     - The same key pair was used for both Instance A and Instance B to simplify management.
+   - Create a new **RSA** key pair for secure SSH access to both instances. 
+   - Save the `.pem` file securely on local machine and use it for both instances.
+   - Make sure to add file permissions to key pair through **chmod key** on local machine so instances can have access
 
 ### 4. **Security Group Configuration**
-   - A new **Security Group** was created with the following inbound rules:
-     - **SSH (Port 22)**: Allowed only from the user's IP address for secure access to the instances.
-     - **HTTP (Port 80)** and **HTTPS (Port 443)** were not enabled, as web traffic is not necessary for this project.
-   - This ensures that the instances are only accessible via SSH from the specific IP address of the user, minimizing security risks.
+   - Create a **Security Group** with the following inbound rules:
+     - **SSH (Port 22)**: Only my IP address can access.
+     - **HTTP (Port 80)** 
+     - **HTTPS (Port 443)**
 
 ### 5. **Launch Instances**
-   - **Instance A**: Launched the first EC2 instance using Amazon Linux 2, t2.micro instance type, the previously created key pair, and the security group.
-   - **Instance B**: Launched a second EC2 instance using the same configuration (Amazon Linux 2, t2.micro, same key pair, and same security group) to ensure consistency.
+   - Launch two EC2 instances (Instance A and Instance B) using the same configuration: **Amazon Linux 2, t2.micro, the same key pair, and the same security group**.
 
 ### 6. **Post-Launch Tasks**
-   - After launching both instances, verified that SSH access works for both instances using the following command:
+   - Verify SSH access to both instances:
      ```bash
      ssh -i /path/to/your-key.pem ec2-user@your-instance-public-ip
      ```
-   - Set the correct permissions for the `.pem` file:
+   - Set permissions for the `.pem` file:
      ```bash
      chmod 400 /path/to/your-key.pem
      ```
 
 ### 7. **AWS Credentials Setup**
-   - Set up AWS credentials as environment variables on the local machine. These credentials are used by the Java AWS SDK to access AWS services (S3, SQS, and Rekognition).
-   - Run the following commands in your terminal (substitute your actual credentials):
+   - Set up AWS credentials as environment variables:
      ```bash
      export AWS_ACCESS_KEY_ID=your-access-key
      export AWS_SECRET_ACCESS_KEY=your-secret-key
-     export AWS_SESSION_TOKEN=your-session-token  # If applicable
+     export AWS_SESSION_TOKEN=your-session-token  
      ```
-   - These credentials allow the program to interact with AWS services programmatically.
 
 ### 8. **Transfer the Project Files to Instance A**
-   - To run the image recognition Java project on **Instance A**, the local project files were securely transferred to the instance using the `scp` command:
+   - Transfer project files to **Instance A** using `scp`:
      ```bash
      scp -i /path/to/your-key.pem -r /path/to/local-project-folder/ ec2-user@your-instance-public-ip:/home/ec2-user/
      ```
-   - Example:
-     ```bash
-     scp -i /Users/ambersautner/Desktop/Class/amber_sautner_aws_key.pem -r /Users/ambersautner/AWSImageRecognition/AWSProject/ ec2-user@ec2-18-206-176-12.compute-1.amazonaws.com:/home/ec2-user/
-     ```
-   - This command securely copies the entire project folder to the EC2 instance.
 
 ### 9. **Compile and Run the Project on Instance A**
-   - After the project files were transferred to **Instance A**, logged into the EC2 instance using SSH and navigated to the project directory:
+   - Log into Instance A and navigate to the project directory:
      ```bash
      ssh -i /path/to/your-key.pem ec2-user@your-instance-public-ip
      cd /home/ec2-user/AWSProject
      ```
-   - **Compile the Java project**:
+   - Compile and package the Java project:
      ```bash
      mvn clean compile
-     ```
-   - **Package the Java project**:
-     ```bash
      mvn clean package
      ```
-   - **Run the Java application**:
+   - Run the Java application for **Instance A**:
      ```bash
      java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.InstanceA
      ```
 
 ### 10. **Run the Project on Instance B**
-   - After completing setup for **Instance A**, moved to **Instance B** to process image data sent by Instance A.
-   - Compiled and packaged the project similarly on **Instance B**:
+   - Log into **Instance B** and repeat the process:
      ```bash
      mvn clean compile
      mvn clean package
      ```
-   - Then executed **Instance B**:
+   - Run the Java application for **Instance B**:
      ```bash
      java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.InstanceB
      ```
 
-### 11. **Handling Errors and AWS Region Setup**
-   - To resolve issues with ambiguous `Region` imports, ensured that the AWS `Region` class is fully qualified in the Java code:
-     ```java
-     software.amazon.awssdk.regions.Region region = software.amazon.awssdk.regions.Region.US_EAST_1;
-     ```
-   - Made sure the correct AWS region (`us-east-1`) is set for your services (S3, SQS, Rekognition).
-
-### 12. **Processing Images**
-   - Successfully executed **Instance B** to process images using AWS Rekognition and SQS.
-   - Images were processed in real-time, and messages for the processed images were deleted from the SQS queue:
-     ```bash
-     mvn exec:java -Dexec.mainClass="com.example.InstanceB"
-     ```
-
-### 13. **Termination Reminder**
-   - As the EC2 instances are running on the AWS Free Tier, it's important to **terminate** the instances once the project is completed to avoid incurring additional charges:
-     - Go to **EC2 Dashboard** > **Instances**, select both instances, and click **Terminate**.
-
-## Additional Notes
-- Both instances were configured to communicate using AWS services such as S3, SQS, and Rekognition for the Image Recognition Pipeline project.
-- It is crucial to monitor the usage and ensure the instances are terminated after completing the tasks to avoid unnecessary charges.
+# Conclusion
