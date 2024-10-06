@@ -205,7 +205,7 @@ public class AWS {
                     if (!textDetections.isEmpty()) {
                         // Writing detected text to the output file
                         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true))) {  // Append mode
-                            writer.write("=== Detected Text for Image Index: " + index + " (with car detected) ===\n");
+                            writer.write("=== Detected Text for Image Index: " + index + " (Car Detected) ===\n");
                             writer.write("Image Key: " + imageKey + "\n");
                             writer.write("Detected text:\n");
                             for (TextDetection text : textDetections) {
