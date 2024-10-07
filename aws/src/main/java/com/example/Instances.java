@@ -129,99 +129,100 @@ public class Instances {
     }
 
     // Instance B for detecting text
-    static class InstanceB implements Runnable {
-        @Override
-        public void run() {
-            processTextDetection();
+    // Instance B for detecting text
+static class InstanceB implements Runnable {
+    @Override
+    public void run() {
+        processTextDetection();
+    }
+
+    private void processTextDetection() {
+        boolean processing = true;
+        File outputFile = new File("/mnt/InstanceBVolume/output.txt");  // Updated to use EBS
+
+        try {
+            if (outputFile.createNewFile()) {
+                System.out.println("Output file created: " + outputFile.getAbsolutePath());
+            } else {
+                System.out.println("Output file already exists: " + outputFile.getAbsolutePath());
+            }
+        } catch (IOException e) {
+            System.err.println("Error creating output file: " + e.getMessage());
         }
 
-        private void processTextDetection() {
-            boolean processing = true;
-            File outputFile = new File("/tmp/output.txt");
+        while (processing) {
+            ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
+                    .queueUrl(SQS_QUEUE_URL)
+                    .maxNumberOfMessages(10)
+                    .waitTimeSeconds(20)
+                    .build();
 
-            try {
-                if (outputFile.createNewFile()) {
-                    System.out.println("Output file created: " + outputFile.getAbsolutePath());
-                } else {
-                    System.out.println("Output file already exists: " + outputFile.getAbsolutePath());
+            List<Message> messages = sqsClient.receiveMessage(receiveMessageRequest).messages();
+
+            for (Message message : messages) {
+                String[] messageParts = message.body().split(",");
+                if (messageParts.length != 2) {
+                    System.err.println("Invalid message format: " + message.body());
+                    continue;
                 }
-            } catch (IOException e) {
-                System.err.println("Error creating output file: " + e.getMessage());
-            }
 
-            while (processing) {
-                ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
-                        .queueUrl(SQS_QUEUE_URL)
-                        .maxNumberOfMessages(10)
-                        .waitTimeSeconds(20)
+                String index = messageParts[0].trim();
+                String imageKey = messageParts[1].trim();
+
+                if (imageKey.equals("-1")) {
+                    processing = false;
+                    System.out.println("All images processed. Exiting.");
+                    break;
+                }
+
+                // Update the local image path to use the EBS volume
+                String localImagePath = "/mnt/InstanceBVolume/" + imageKey;
+                try {
+                    Files.deleteIfExists(Paths.get(localImagePath));
+                } catch (IOException e) {
+                    System.err.println("Error deleting existing file: " + e.getMessage());
+                }
+
+                GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                        .bucket(BUCKET_NAME)
+                        .key(imageKey)
                         .build();
 
-                List<Message> messages = sqsClient.receiveMessage(receiveMessageRequest).messages();
+                s3Client.getObject(getObjectRequest, Paths.get(localImagePath));
 
-                for (Message message : messages) {
-                    String[] messageParts = message.body().split(",");
-                    if (messageParts.length != 2) {
-                        System.err.println("Invalid message format: " + message.body());
-                        continue;
-                    }
+                DetectTextRequest detectTextRequest = DetectTextRequest.builder()
+                        .image(Image.builder()
+                                .s3Object(S3Object.builder()
+                                        .bucket(BUCKET_NAME)
+                                        .name(imageKey)
+                                        .build())
+                                .build())
+                        .build();
 
-                    String index = messageParts[0].trim();
-                    String imageKey = messageParts[1].trim();
+                DetectTextResponse detectTextResponse = rekognitionClient.detectText(detectTextRequest);
+                List<TextDetection> textDetections = detectTextResponse.textDetections();
 
-                    if (imageKey.equals("-1")) {
-                        processing = false;
-                        System.out.println("All images processed. Exiting.");
-                        break;
-                    }
-
-                    String localImagePath = "/tmp/" + imageKey;
-                    try {
-                        Files.deleteIfExists(Paths.get(localImagePath));
-                    } catch (IOException e) {
-                        System.err.println("Error deleting existing file: " + e.getMessage());
-                    }
-
-                    GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                            .bucket(BUCKET_NAME)
-                            .key(imageKey)
-                            .build();
-
-                    s3Client.getObject(getObjectRequest, Paths.get(localImagePath));
-
-                    DetectTextRequest detectTextRequest = DetectTextRequest.builder()
-                            .image(Image.builder()
-                                    .s3Object(S3Object.builder()
-                                            .bucket(BUCKET_NAME)
-                                            .name(imageKey)
-                                            .build())
-                                    .build())
-                            .build();
-
-                    DetectTextResponse detectTextResponse = rekognitionClient.detectText(detectTextRequest);
-                    List<TextDetection> textDetections = detectTextResponse.textDetections();
-
-                    if (!textDetections.isEmpty()) {
-                        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true))) {
-                            writer.write("=== Detected Text for Image Index: " + index + " (Car Detected) ===\n");
-                            writer.write("Image Key: " + imageKey + "\n");
-                            writer.write("Detected text:\n");
-                            for (TextDetection text : textDetections) {
-                                writer.write("Detected: " + text.detectedText() + "\n");
-                            }
-                            writer.write("\n");
-                        } catch (IOException e) {
-                            System.err.println("Error writing to file: " + e.getMessage());
+                if (!textDetections.isEmpty()) {
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true))) {
+                        writer.write("=== Detected Text for Image Index: " + index + " (Car Detected) ===\n");
+                        writer.write("Image Key: " + imageKey + "\n");
+                        writer.write("Detected text:\n");
+                        for (TextDetection text : textDetections) {
+                            writer.write("Detected: " + text.detectedText() + "\n");
                         }
+                        writer.write("\n");
+                    } catch (IOException e) {
+                        System.err.println("Error writing to file: " + e.getMessage());
                     }
-
-                    DeleteMessageRequest deleteMessageRequest = DeleteMessageRequest.builder()
-                            .queueUrl(SQS_QUEUE_URL)
-                            .receiptHandle(message.receiptHandle())
-                            .build();
-                    sqsClient.deleteMessage(deleteMessageRequest);
-                    System.out.println("Deleted message for image: " + imageKey);
                 }
+
+                DeleteMessageRequest deleteMessageRequest = DeleteMessageRequest.builder()
+                        .queueUrl(SQS_QUEUE_URL)
+                        .receiptHandle(message.receiptHandle())
+                        .build();
+                sqsClient.deleteMessage(deleteMessageRequest);
+                System.out.println("Deleted message for image: " + imageKey);
             }
         }
     }
-}
+}}
