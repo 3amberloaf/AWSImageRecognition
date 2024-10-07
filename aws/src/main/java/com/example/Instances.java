@@ -139,7 +139,7 @@ static class InstanceB implements Runnable {
 
     private void processTextDetection() {
         boolean processing = true;
-        File outputFile = new File("/mnt/InstanceBVolume/output.txt");  // Updated to use EBS
+        File outputFile = new File("/mnt/EBSB/output.txt");  // Updated to use EBS
 
         try {
             if (outputFile.createNewFile()) {
@@ -177,7 +177,7 @@ static class InstanceB implements Runnable {
                 }
 
                 // Update the local image path to use the EBS volume
-                String localImagePath = "/mnt/InstanceBVolume/" + imageKey;
+                String localImagePath = "/mnt/EBSB/" + imageKey;
                 try {
                     Files.deleteIfExists(Paths.get(localImagePath));
                 } catch (IOException e) {
