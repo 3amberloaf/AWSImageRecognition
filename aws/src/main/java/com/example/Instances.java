@@ -130,6 +130,7 @@ public class Instances {
 
     // Instance B for detecting text
     // Instance B for detecting text
+// Instance B for detecting text
 static class InstanceB implements Runnable {
     @Override
     public void run() {
@@ -225,4 +226,5 @@ static class InstanceB implements Runnable {
             }
         }
     }
+
 }}
