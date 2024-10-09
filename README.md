@@ -1,8 +1,8 @@
 # AWS Image Recognition Pipeline Project
 
-In this project, distributed computing was achieved by using two separate **EC2 instances** (Instance A and Instance B). The instances run in parallel and communicate via **AWS SQS** to process images stored in **AWS S3**. Each instance performs a specific task—car detection and text recognition—contributing to a larger distributed application using AWS services for storage, message queuing, and machine learning.
+Amazon Web Services is a powerful cloud platform that allows seamless management, monitoring, and access to resources over the web. This project leverages distributed computing through two distinct **EC2 instances** (Instance A and Instance B), which run in parallel and communicate via **AWS SQS** to process images stored in **AWS S3**. Each instance is responsible for a specific task—car detection and text recognition—working together within a distributed architecture. The project integrates AWS services for storage, message queuing, and machine learning to build an efficient, scalable solution.
 
-![Project Overview](AWSProject/src/images/fig1.jpg)
+![Project Overview](//AWSImageRecognition/aws/src/images/fig1.jpg)
 
 ### Key AWS Services Utilized
 - **EC2**: Virtual machines for running the image recognition pipeline created from Amazon Linuz AMI.
@@ -10,11 +10,13 @@ In this project, distributed computing was achieved by using two separate **EC2 
 - **SQS**: Queue service for communication between the instances.
 - **Rekognition**: AWS service used for image and text recognition.
 
----
 
-## System Architecture
+<br>
 
-### EC2 Instances
+# System Architecture
+
+
+## EC2 Instances
 - **Instance A**: 
   - Reads images one by one from the S3 bucket.
   - Detects cars in images using AWS Rekognition.
@@ -25,14 +27,15 @@ In this project, distributed computing was achieved by using two separate **EC2 
   - Reads image indices from SQS.
   - Downloads the corresponding images from S3.
   - Uses Rekognition to perform text recognition.
-  - If both a car and text are found in an image, it writes the image’s index and the detected text to a file stored on the EBS (Elastic Block Store) volume.
+  - If both a car and text are found in an image, it writes the image’s index and the detected text to a file stored on Instance B's EBS (Elastic Block Store) volume.
 
 ### S3 Storage
 
  - **Storing Images**:
    The images used for object and text recognition are stored in an S3 bucket. The bucket URL is: https://njit-cs-643.s3.us-east-1.amazonaws.com
 
-In the following example, Instance A downloads an image (2.jpg) from the S3 bucket njit-cs-643 and saves it to the local file system for further processing by Instance B. 
+In the following example, Instance A downloads an image (2.jpg) from the S3 bucket njit-cs-643 and saves it locally for Instance B. 
+
 ```java
 // Initialize the S3 Client
 S3Client s3 = S3Client.builder().region(Region.US_EAST_1).build();
@@ -53,6 +56,7 @@ s3.getObject(GetObjectRequest.builder()
 ```
 
 ### Simple Queue Service
+
  - **Instance A sends messages to SQS**
    - Instance A will process images from the S3 bucket and use **AWS Rekognition** to detect if there are cars. When a car is detected with at least a 90% confidence rate, Instance A sends the index of that image (e.g., `2.jpg`) to the SQS queue.
    - Instance A will also send a message (`-1`) to the queue when all images have been processed, which tells Instance B that there are no more images.
@@ -69,7 +73,7 @@ In the folowing code, **Instance A** sends messages to SQS.
    // Define the SQS queue URL
    String queueUrl = "https://sqs.us-east-1.amazonaws.com/your-account-id/your-queue-name";
 
-   // Send image index (e.g., 2.jpg) to SQS
+   // Send image index to SQS
    String imageIndex = "2.jpg";
    sqs.sendMessage(SendMessageRequest.builder()
            .queueUrl(queueUrl)
@@ -83,31 +87,12 @@ In the folowing code, **Instance A** sends messages to SQS.
            .build());
   ```
 
-## Using AWS Rekognition Machine Learning Service in the Cloud
+## AWS Rekognition
 
-In this project, **AWS Rekognition** is used as the machine learning service to perform two key tasks:
+**AWS Rekognition** is used as the machine learning service to perform two key tasks:
 1. **Object Detection**: Instance A uses Rekognition to detect cars in images.
 2. **Text Recognition**: Instance B uses Rekognition to extract text from images that were flagged by Instance A as containing cars.
 
-### AWS Rekognition Overview
-
-In this project, **Rekognition** is utilized to detect cars in images and to recognize text in images.
-
-### Key Steps for Using AWS Rekognition:
-
-1. **Set Up AWS SDK for Rekognition in Java**
-   - To use AWS Rekognition in your Java application, you must first set up the AWS SDK for Rekognition. This involves importing the necessary packages and initializing the Rekognition client.
-
-   Example of setting up Rekognition in Java:
-   ```java
-   // Import the necessary AWS SDK packages
-   import software.amazon.awssdk.services.rekognition.RekognitionClient;
-   import software.amazon.awssdk.regions.Region;
-
-   // Initialize the AWS Rekognition client
-   RekognitionClient rekognitionClient = RekognitionClient.builder()
-           .region(Region.US_EAST_1)  // Use the appropriate region
-           .build();
 
 ## Distributed Computing
 
@@ -117,37 +102,25 @@ The two EC2 instances run in parallel, with **Instance A** detecting cars in ima
 
 ### Communication Through SQS
 
-To communicate between the two EC2 instances, **Amazon SQS** is used. **Instance A** sends messages (image indices) to the SQS queue when it detects a car in an image. **Instance B** continuously polls the queue and processes the images as soon as a new message is received.
+To communicate between the two EC2 instances, **Amazon SQS** is used. **Instance A** sends the image indices to the SQS queue when it detects a car in an image. **Instance B** continuously polls the queue and processes the images as soon as a new message is received.
 
 This decoupling allows the two instances to operate independently without waiting for each other, thus achieving distributed processing.
 
-___
+# Cloud Environment Setup and Application Process
 
-## Steps to Create EC2 Instances
+## EC2 Instances Creation
 
-Create two instances (Instance A and Instance B) with the following requirements.
+Create two instances (Instance A and Instance B) with the following configuration:
 
-### 1. **Choose the AMI**
-   - **Amazon Linux 2 AMI** - provides stable and modern Linux environment with long-term support.
+- **Amazon Linux 2 AMI**: Provides a stable and modern Linux environment with long-term support.
+- **Instance Type**: `t2.micro`
+- **Key Pair**: Create an RSA key pair for secure SSH access and download the `.pem` file to your local machine.
+- **Security Group**: Configure a security group with the following inbound rules:
+  - SSH (Port 22): Set to MYIP
+  - HTTP (Port 80): Set to MYIP
+  - HTTPS (Port 443): Set to MYIP
 
-### 2. **Instance Type**
-   - **t2.micro** - compatible with AWS Free Tier.
-
-### 3. **Key Pair Creation**
-   - Create a new **RSA** key pair for secure SSH access to both instances. 
-   - Save the `.pem` file securely on local machine and use it for both instances.
-   - Make sure to add file permissions to key pair through **chmod key** on local machine so instances can have access
-
-### 4. **Security Group Configuration**
-   - Create a **Security Group** with the following inbound rules:
-     - **SSH (Port 22)**: Only my IP address can access.
-     - **HTTP (Port 80)** 
-     - **HTTPS (Port 443)**
-
-### 5. **Launch Instances**
-   - Launch two EC2 instances (Instance A and Instance B) using the same configuration: **Amazon Linux 2, t2.micro, the same key pair, and the same security group**.
-
-### 6. **Post-Launch Tasks**
+## Post-Launch Tasks
    - Verify SSH access to both instances:
      ```bash
      ssh -i /path/to/your-key.pem ec2-user@your-instance-public-ip
@@ -202,6 +175,5 @@ Create two instances (Instance A and Instance B) with the following requirements
 
 This project successfully demonstrates how to build a distributed image recognition pipeline using AWS services. By utilizing two **EC2 instances** (Instance A and B), working in parallel, the pipeline efficiently handles image processing tasks such as car detection and text recognition. With **Amazon S3** providing scalable storage for images, **Amazon SQS** ensuring smooth communication between the instances, and **AWS Rekognition** offering powerful machine learning capabilities, the pipeline illustrates the effectiveness of cloud-based services for distributed computing.
 
-Instance A’s ability to detect cars in images and communicate with Instance B via SQS highlights the decoupling of tasks, allowing both instances to operate independently and in parallel. Instance B’s text recognition workflow further adds value by extracting and logging useful text information from the identified images. 
 
 The use of **AWS SDKs** in **Java** to integrate these services into a cohesive application demonstrates the ease with which developers can leverage cloud infrastructure to create scalable, reliable, and efficient systems. This project not only showcases distributed computing but also exemplifies the power and flexibility of AWS cloud services in real-world applications.
