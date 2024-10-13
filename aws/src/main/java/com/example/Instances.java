@@ -26,15 +26,19 @@ import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
+// Main class 
 public class Instances {
 
-    private static final String BUCKET_NAME = "njit-cs-643";
+    // Static constants 
+    private static final String S3_BUCKET = "njit-cs-643";
     private static final String SQS_QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/160010033088/AWSImageRecognitionQueue";
 
+    // Static variables for AWS services
     private static S3Client s3Client;
     private static RekognitionClient rekognitionClient;
     private static SqsClient sqsClient;
 
+    // Main method to initialize AWS clients
     public static void main(String[] args) {
         initializeClients();
 
@@ -55,6 +59,7 @@ public class Instances {
         }
     }
 
+    // Initialize the AWS services 
     private static void initializeClients() {
         s3Client = S3Client.builder().build();
         rekognitionClient = RekognitionClient.builder().build();
@@ -63,15 +68,17 @@ public class Instances {
 
     // Instance A for detecting cars
     static class InstanceA implements Runnable {
+        // Override to define Instance logic to process images
         @Override
         public void run() {
             processImages();
         }
 
+        // Loops through the 10 images and generated image key and temporary path
         private void processImages() {
             for (int i = 1; i <= 10; i++) {
                 String imageKey = i + ".jpg";
-                String imagePath = "/tmp/" + imageKey;  // Temp path for Instance A
+                String imagePath = "/tmp/" + imageKey;  
 
                 // Delete existing file if it exists
                 try {
@@ -82,32 +89,34 @@ public class Instances {
 
                 // Download the image from S3
                 s3Client.getObject(GetObjectRequest.builder()
-                        .bucket(BUCKET_NAME)
+                        .bucket(S3_BUCKET)
                         .key(imageKey)
                         .build(), ResponseTransformer.toFile(Paths.get(imagePath)));
 
                 // Perform object detection using Rekognition
                 Image image = Image.builder()
                         .s3Object(S3Object.builder()
-                                .bucket(BUCKET_NAME)
+                                .bucket(S3_BUCKET)
                                 .name(imageKey)
                                 .build())
                         .build();
 
+                // Creates request object for label detection with min of 90% confidence
                 DetectLabelsRequest detectLabelsRequest = DetectLabelsRequest.builder()
                         .image(image)
                         .minConfidence(90F)
                         .build();
 
+                // Send request to AWS and return list of detected cars
                 DetectLabelsResponse labelsResponse = rekognitionClient.detectLabels(detectLabelsRequest);
                 List<Label> labels = labelsResponse.labels();
 
-                // Check for "Car" label
+                // Check if any cars meet confidence requirement 
                 boolean carDetected = labels.stream()
                         .anyMatch(label -> label.name().equalsIgnoreCase("Car") && label.confidence() > 90);
 
+                // If car detected send to SQS and print message to console
                 if (carDetected) {
-                    // Send the image index to SQS
                     String messageBody = i + "," + imageKey;
                     SendMessageRequest sendMsgRequest = SendMessageRequest.builder()
                             .queueUrl(SQS_QUEUE_URL)
@@ -121,7 +130,7 @@ public class Instances {
                 }
             }
 
-            // Signal that Instance A has finished processing
+            // Output -1 when no more images are left
             sqsClient.sendMessage(SendMessageRequest.builder()
                     .queueUrl(SQS_QUEUE_URL)
                     .messageBody("-1")
@@ -138,8 +147,9 @@ public class Instances {
 
         private void processTextDetection() {
             boolean processing = true;
-            File outputFile = new File("/mnt/EBSB/output.txt");  // Writes to EBS
-
+            File outputFile = new File("/mnt/EBSB/output.txt");  // Writes to EBS on Instance B
+            
+            // Create or open the file in EBSB
             try {
                 if (outputFile.createNewFile()) {
                     System.out.println("Output file created: " + outputFile.getAbsolutePath());
@@ -150,11 +160,12 @@ public class Instances {
                 System.err.println("Error creating output file: " + e.getMessage());
             }
 
+            // Processes images from SQS queue, waits 30 seconds if no messages
             while (processing) {
                 ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
                         .queueUrl(SQS_QUEUE_URL)
                         .maxNumberOfMessages(10)
-                        .waitTimeSeconds(20)
+                        .waitTimeSeconds(30)
                         .build();
 
                 List<Message> messages = sqsClient.receiveMessage(receiveMessageRequest).messages();
@@ -169,7 +180,7 @@ public class Instances {
                     String index = messageParts[0].trim();
                     String imageKey = messageParts[1].trim();
 
-                    // Stop if Instance A is done
+                    // Stops processing images if recieved termination signal from Instance A
                     if (imageKey.equals("-1")) {
                         processing = false;
                         System.out.println("All images processed. Exiting.");
@@ -185,15 +196,15 @@ public class Instances {
                     }
 
                     s3Client.getObject(GetObjectRequest.builder()
-                            .bucket(BUCKET_NAME)
+                            .bucket(S3_BUCKET)
                             .key(imageKey)
                             .build(), Paths.get(localImagePath));
 
-                    // Perform text recognition
+                    // Sends request to AWS for text recognition
                     DetectTextRequest detectTextRequest = DetectTextRequest.builder()
                             .image(Image.builder()
                                     .s3Object(S3Object.builder()
-                                            .bucket(BUCKET_NAME)
+                                            .bucket(S3_BUCKET)
                                             .name(imageKey)
                                             .build())
                                     .build())
@@ -202,7 +213,7 @@ public class Instances {
                     DetectTextResponse detectTextResponse = rekognitionClient.detectText(detectTextRequest);
                     List<TextDetection> textDetections = detectTextResponse.textDetections();
 
-                    // Write the results to the output file
+                    // Write the results to the output file in EBSB
                     if (!textDetections.isEmpty()) {
                         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true))) {
                             writer.write("=== Detected Text for Image Index: " + index + " ===\n");
@@ -217,7 +228,7 @@ public class Instances {
                         }
                     }
 
-                    // Delete processed message from SQS
+                    // Delete message from SQS
                     sqsClient.deleteMessage(DeleteMessageRequest.builder()
                             .queueUrl(SQS_QUEUE_URL)
                             .receiptHandle(message.receiptHandle())
