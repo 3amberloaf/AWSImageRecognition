@@ -167,9 +167,11 @@ Create two instances (Instance A and Instance B) with the following configuratio
 
 ### Retrieve Output File
  - Find the ouput.txt file in the EBSB in Instance B
-
-      `cd /mnt/EBSB/output.txt`
-      `cat output.txt`
+  ```
+      cd /mnt/EBSB/output.txt
+      cat output.txt
+      
+  ```
 
 ## Conclusion
 
