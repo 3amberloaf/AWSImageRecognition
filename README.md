@@ -107,6 +107,8 @@ Create two instances (Instance A and Instance B) with the following configuratio
   - HTTP (Port 80): Set to MYIP
   - HTTPS (Port 443): Set to MYIP
 
+![alt text](image-5.png)
+![alt text](image-4.png)
 ## Instance Configuration Tasks
    - Verify SSH access to both instances:
      ```bash
@@ -162,6 +164,12 @@ Create two instances (Instance A and Instance B) with the following configuratio
      ```bash
      java -cp target/AWSImageRecognition-1.0-SNAPSHOT.jar com.example.Instances
      ```
+
+### Retrieve Output File
+ - Find the ouput.txt file in the EBSB in Instance B
+
+      `cd /mnt/EBSB/output.txt`
+      `cat output.txt`
 
 ## Conclusion
 
